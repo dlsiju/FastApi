@@ -1,3 +1,4 @@
+import uuid
 from typing import Annotated
 
 import uvicorn
@@ -106,8 +107,9 @@ def create_user(usr: UserDetail, db: Session = Depends(get_db)):
     return db_place
 
 
-def save_user(db: Session, usr: User):
+def save_user(db: Session, usr: UserDetail):
     db_place = User(**usr.dict())
+    db_place.user_id = uuid.uuid4()
     db.add(db_place)
     db.commit()
     db.refresh(db_place)
@@ -119,14 +121,40 @@ def get_all_users(db_session: Session = Depends(get_db)):
     return db_session.query(User)
 
 
-@fastapi.get("/getUserById", response_model=UserDetail)
-def get_user_by_id(userId: int, db_session: Session = Depends(get_db)):
-    return db_session.get(User, userId)
+@fastapi.get("/getUserById", response_model=None)
+def get_user_by_id(userId: uuid.UUID, db_session: Session = Depends(get_db)):
+    user = db_session.get(User, userId)
+    if user is None:
+        return {"response": {"message": "user not found"}}
+    else:
+        return user
 
 
 @fastapi.get("/getUserByPlace", response_model=list[UserDetail])
 def get_user_by_place(plc: str, db_session: Session = Depends(get_db)):
     return db_session.query(User).filter(User.place == plc)
+
+
+@fastapi.delete("/deleteById")
+def delete_by_id(userId: uuid.UUID, db_session: Session = Depends(get_db)):
+    user = db_session.get(User, userId)
+    if user is None:
+        return {"response": {"message": "user not found"}}
+    db_session.delete(user)
+    db_session.commit()
+    return {"response": {"message": "Successfully deleted user"}}
+
+
+@fastapi.patch("/update")
+def update_user(usr: UserDetail, db_session: Session = Depends(get_db)):
+    user = db_session.get(User, usr.user_id)
+    if user is None:
+        return {"response": {"message": "user not found"}}
+    user.place = usr.place
+    user.name = usr.name
+    user.age = usr.age
+    db_session.commit()
+    return {"response": {"message": "Successfully updated user"}}
 
 
 if __name__ == "__main__":
