@@ -1,23 +1,28 @@
-import os
 import uuid
+from datetime import timedelta, datetime, timezone
 from typing import Annotated
 
+import jwt
 import uvicorn
-from dotenv import load_dotenv
-from fastapi import FastAPI, Query, Path, Depends
+from fastapi import FastAPI, Query, Path, Depends, HTTPException, status
 from fastapi.params import Body
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from sqlalchemy import and_
 
 from dto.Location import Location
 from dto.LoginDto import LoginDto
 from dto.UserDto import UserDto
 from enums.Days import Day
-from entity.models import User, Address, Account
+from entity.models import User, Address, Account, Login
 from sqlalchemy.orm import Session
 from DbConfiguration.ConnectDb import SessionLocal
-from entity.schema import UserDetail
+from entity.schema import UserDetail, UserAuth, LoggedInResult
 
 fastapi = FastAPI()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login_token")
+SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 
 def get_db():
@@ -105,7 +110,7 @@ async def create_index_weights(weights: dict[int, float]):
 
 
 @fastapi.post('/create/', response_model=UserDetail)
-def create_user(usr: UserDetail, db: Session = Depends(get_db)):
+def create_user(usr: UserDetail, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
     print('name=', usr.name)
     print('age=', usr.age)
     print('email=', usr.email)
@@ -183,6 +188,80 @@ def update_user(usr: UserDetail, db_session: Session = Depends(get_db)):
     user.age = usr.age
     db_session.commit()
     return {"response": {"message": "Successfully updated user"}}
+
+
+def fake_decode_token(token):
+    print('calledddddddddddddddddd fake_decode_token')
+    return UserAuth(
+        username=token + "fakedecoded", email="john@example.com", full_name="John Doe"
+    )
+
+
+async def get_decode_token(token: Annotated[str, Depends(oauth2_scheme)]):
+    print('calledddddddddddddddddd get_decode_token')
+    user = fake_decode_token(token)
+    return user
+
+
+@fastapi.get("/auth/")
+async def auth_user(token: Annotated[str, Depends(get_decode_token)]):
+    print('calledddddddddddddddddd auth_user')
+    return {"token": token}
+
+
+@fastapi.post("/login_token")
+async def auth_user(loginForm: OAuth2PasswordRequestForm = Depends(), db_session: Session = Depends(get_db)):
+    print('calledddddddddddddddddd auth_user')
+    print('useranem=', loginForm.username)
+    print('password=', loginForm.password)
+    login = db_session.query(Login).filter(
+        and_(Login.username == loginForm.username, Login.password == loginForm.password)).first()
+    if not login:
+        print("login not found")
+    else:
+        print('login found')
+        print('login userId=', login.user_id)
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        generated_jwt_token = generate_jwt_token(login.username, access_token_expires)
+        print('access_token_expires=', access_token_expires)
+        return LoggedInResult(token=generated_jwt_token, token_type="bearer")
+
+
+def generate_jwt_token(user_name: str, expireTime: timedelta):
+    expire = datetime.now(timezone.utc) + expireTime
+    data = {"sub": user_name}.copy()
+    data.update({"exp": expire})
+    encoded_jwt = jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
+    print('encoded_jwt=', encoded_jwt)
+    return encoded_jwt
+
+
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+    print('called get_current_user')
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    print('TOKENNNNNNNNNNNN===',token)
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    username: str = payload.get("sub")
+    print('decodec username form token=', username)
+    return username
+
+
+async def get_current_active_user(
+        current_user: Annotated[str, Depends(get_current_user)],
+):
+    print('called get_current_active_user')
+    return current_user
+
+
+@fastapi.get("/users/me/")
+async def get_logged_in(
+        current_user: Annotated[str, Depends(get_current_active_user)],
+):
+    return current_user
 
 
 if __name__ == "__main__":

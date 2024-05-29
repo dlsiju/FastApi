@@ -14,7 +14,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     address = relationship("Address", uselist=False, back_populates="parent", cascade="all, delete")
     accounts = relationship("Account", uselist=True, back_populates="accountUser", cascade="all, delete")
-
+    login = relationship("Login", uselist=False, back_populates="user", cascade="all, delete")
 
 class Address(Base):
     __tablename__ = "address"
@@ -34,3 +34,13 @@ class Account(Base):
     bank = Column(String, index=True)
     balance = Column(String, index=True)
     accountUser = relationship("User", back_populates="accounts")
+
+
+class Login(Base):
+    __tablename__ = "login"
+
+    id = Column(Uuid, primary_key=True)
+    user_id = Column(Uuid, ForeignKey("user.id"), nullable=False)
+    username = Column(String, default=True, unique=True)
+    password = Column(String, default=True)
+    user = relationship("User", back_populates="login")

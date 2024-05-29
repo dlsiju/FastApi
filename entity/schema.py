@@ -35,3 +35,13 @@ class UserDetail(BaseModel):
 
     class Config:
         orm_mode = True
+
+class UserAuth(BaseModel):
+    username: str
+    email: str | None = None
+    full_name: str | None = None
+    disabled: str | None = None
+
+class LoggedInResult(BaseModel):
+    token: str
+    token_type: str
