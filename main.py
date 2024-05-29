@@ -1,21 +1,23 @@
+import os
 import uuid
 from typing import Annotated
 
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI, Query, Path, Depends
 from fastapi.params import Body
+from fastapi.security import OAuth2PasswordBearer
 
 from dto.Location import Location
 from dto.LoginDto import LoginDto
 from dto.UserDto import UserDto
 from enums.Days import Day
-from entity.User import User
+from entity.models import User
 from sqlalchemy.orm import Session
 from DbConfiguration.ConnectDb import SessionLocal
 from entity.schema import UserDetail
 
 fastapi = FastAPI()
-
 
 def get_db():
     db = SessionLocal()
