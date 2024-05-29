@@ -12,12 +12,13 @@ from dto.Location import Location
 from dto.LoginDto import LoginDto
 from dto.UserDto import UserDto
 from enums.Days import Day
-from entity.models import User
+from entity.models import User, Address
 from sqlalchemy.orm import Session
 from DbConfiguration.ConnectDb import SessionLocal
 from entity.schema import UserDetail
 
 fastapi = FastAPI()
+
 
 def get_db():
     db = SessionLocal()
@@ -105,17 +106,34 @@ async def create_index_weights(weights: dict[int, float]):
 
 @fastapi.post('/create/', response_model=UserDetail)
 def create_user(usr: UserDetail, db: Session = Depends(get_db)):
+    print('name=', usr.name)
+    print('age=', usr.age)
+    print('email=', usr.email)
+    print('country=', usr.address.country)
+    print('street=', usr.address.street)
+    print('zipcode=', usr.address.zip_code)
     db_place = save_user(db, usr)
     return db_place
 
 
 def save_user(db: Session, usr: UserDetail):
-    db_place = User(**usr.dict())
-    db_place.user_id = uuid.uuid4()
-    db.add(db_place)
+    user = User()
+    user.name = usr.name
+    user.age = usr.age
+    user.email = usr.email
+    user.place = usr.place
+    addr = Address()
+    addr.country = usr.address.country
+    addr.street = usr.address.street
+    addr.zip_code = usr.address.zip_code
+    addr.phone = usr.address.phone
+    user.id = uuid.uuid4()
+    addr.id = uuid.uuid4()
+    user.address = addr
+    db.add(user)
     db.commit()
-    db.refresh(db_place)
-    return db_place
+    db.refresh(user)
+    return user
 
 
 @fastapi.get("/getAllUsers", response_model=list[UserDetail])

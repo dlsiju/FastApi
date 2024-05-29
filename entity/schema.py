@@ -10,6 +10,9 @@ class AddressDetails(BaseModel):
     zip_code: str
     phone: str
 
+    class Config:
+        orm_mode = True
+
 class UserDetail(BaseModel):
     id: uuid.UUID | None = None
     name: str
