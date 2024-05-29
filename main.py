@@ -12,7 +12,7 @@ from dto.Location import Location
 from dto.LoginDto import LoginDto
 from dto.UserDto import UserDto
 from enums.Days import Day
-from entity.models import User, Address
+from entity.models import User, Address, Account
 from sqlalchemy.orm import Session
 from DbConfiguration.ConnectDb import SessionLocal
 from entity.schema import UserDetail
@@ -112,8 +112,8 @@ def create_user(usr: UserDetail, db: Session = Depends(get_db)):
     print('country=', usr.address.country)
     print('street=', usr.address.street)
     print('zipcode=', usr.address.zip_code)
-    db_place = save_user(db, usr)
-    return db_place
+    saved_user = save_user(db, usr)
+    return saved_user
 
 
 def save_user(db: Session, usr: UserDetail):
@@ -130,6 +130,14 @@ def save_user(db: Session, usr: UserDetail):
     user.id = uuid.uuid4()
     addr.id = uuid.uuid4()
     user.address = addr
+    bank_accounts = []
+    for acc in usr.account:
+        account = Account()
+        account.id = uuid.uuid4()
+        account.bank = acc.name
+        account.balance = acc.balance
+        bank_accounts.append(account)
+    user.accounts = bank_accounts
     db.add(user)
     db.commit()
     db.refresh(user)
