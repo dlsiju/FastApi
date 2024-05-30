@@ -4,11 +4,12 @@ from typing import Annotated
 
 import jwt
 import uvicorn
-from fastapi import FastAPI, Query, Path, Depends, HTTPException, status
+from fastapi import FastAPI, Query, Path, Depends, HTTPException, status,Request
 from fastapi.params import Body
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import and_
 
+from Middleware import Middleware
 from dto.Location import Location
 from dto.LoginDto import LoginDto
 from dto.UserDto import UserDto
@@ -16,7 +17,7 @@ from enums.Days import Day
 from entity.models import User, Address, Account, Login
 from sqlalchemy.orm import Session
 from DbConfiguration.ConnectDb import SessionLocal
-from entity.schema import UserDetail, UserAuth, LoggedInResult
+from entity.schema import UserDetail, UserAuth, LoggedInResult, AppResponse
 
 fastapi = FastAPI()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login_token")
@@ -190,25 +191,6 @@ def update_user(usr: UserDetail, db_session: Session = Depends(get_db)):
     return {"response": {"message": "Successfully updated user"}}
 
 
-def fake_decode_token(token):
-    print('calledddddddddddddddddd fake_decode_token')
-    return UserAuth(
-        username=token + "fakedecoded", email="john@example.com", full_name="John Doe"
-    )
-
-
-async def get_decode_token(token: Annotated[str, Depends(oauth2_scheme)]):
-    print('calledddddddddddddddddd get_decode_token')
-    user = fake_decode_token(token)
-    return user
-
-
-@fastapi.get("/auth/")
-async def auth_user(token: Annotated[str, Depends(get_decode_token)]):
-    print('calledddddddddddddddddd auth_user')
-    return {"token": token}
-
-
 @fastapi.post("/login_token")
 async def auth_user(loginForm: OAuth2PasswordRequestForm = Depends(), db_session: Session = Depends(get_db)):
     print('calledddddddddddddddddd auth_user')
@@ -217,7 +199,7 @@ async def auth_user(loginForm: OAuth2PasswordRequestForm = Depends(), db_session
     login = db_session.query(Login).filter(
         and_(Login.username == loginForm.username, Login.password == loginForm.password)).first()
     if not login:
-        print("login not found")
+       return AppResponse(status="success",data="Username or password is incorrect")
     else:
         print('login found')
         print('login userId=', login.user_id)
@@ -232,28 +214,23 @@ def generate_jwt_token(user_name: str, expireTime: timedelta):
     data = {"sub": user_name}.copy()
     data.update({"exp": expire})
     encoded_jwt = jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
-    print('encoded_jwt=', encoded_jwt)
     return encoded_jwt
 
 
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
-    print('called get_current_user')
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    print('TOKENNNNNNNNNNNN===',token)
     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     username: str = payload.get("sub")
-    print('decodec username form token=', username)
     return username
 
 
 async def get_current_active_user(
         current_user: Annotated[str, Depends(get_current_user)],
 ):
-    print('called get_current_active_user')
     return current_user
 
 
